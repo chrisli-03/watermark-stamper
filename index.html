@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watermark Stamper</title>
+<script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface-raised: #1c2a4a;
+    --border: #2a3a5c;
+    --text: #e0e0e0;
+    --text-dim: #8892a4;
+    --accent: #4fc3f7;
+    --accent-hover: #81d4fa;
+    --danger: #ef5350;
+    --danger-hover: #f44336;
+    --success: #66bb6a;
+    --warn: #ffa726;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 1rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .app {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* --- Sidebar --- */
+  .sidebar {
+    width: 340px;
+    min-width: 340px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 0.75rem;
+  }
+
+  .panel-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .panel-title-row .panel-title { margin-bottom: 0; }
+
+  .badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: var(--accent);
+    color: var(--bg);
+    padding: 0.1rem 0.45rem;
+    border-radius: 9px;
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 1rem 0.75rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(79, 195, 247, 0.05);
+  }
+
+  .upload-zone input[type="file"] { display: none; }
+
+  .upload-zone .label { font-size: 0.85rem; color: var(--text-dim); }
+  .upload-zone .label strong { color: var(--accent); }
+
+  .upload-zone .filename {
+    margin-top: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--success);
+    word-break: break-all;
+  }
+
+  /* --- Image list --- */
+  .image-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .image-list:empty { display: none; }
+
+  .img-thumb {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.12s;
+    background: var(--surface-raised);
+  }
+
+  .img-thumb:hover { border-color: var(--border); }
+
+  .img-thumb.active {
+    border-color: var(--accent);
+    background: rgba(79, 195, 247, 0.08);
+  }
+
+  .img-thumb img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .img-thumb .info { flex: 1; min-width: 0; }
+
+  .img-thumb .info .name {
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+
+  .img-thumb .info .dims { font-size: 0.62rem; color: var(--text-dim); }
+
+  .img-thumb .remove-btn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s;
+  }
+
+  .img-thumb .remove-btn:hover {
+    background: rgba(239, 83, 80, 0.15);
+    color: var(--danger);
+  }
+
+  /* --- Controls with number inputs --- */
+  .control-row { margin-bottom: 0.85rem; }
+  .control-row:last-child { margin-bottom: 0; }
+
+  .control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+    color: var(--text-dim);
+  }
+
+  .num-input {
+    width: 58px;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .num-input:focus { border-color: var(--accent); }
+
+  .num-input::-webkit-inner-spin-button { opacity: 0.5; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+  }
+
+  .preset-btn {
+    padding: 0.4rem 0.25rem;
+    font-size: 0.7rem;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    background: rgba(79, 195, 247, 0.08);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .toggle-row span { font-size: 0.8rem; color: var(--text-dim); }
+
+  .toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  .toggle input { display: none; }
+
+  .toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 11px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle .slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: var(--text);
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+
+  .toggle input:checked + .slider { background: var(--accent); }
+  .toggle input:checked + .slider::before { transform: translateX(18px); }
+
+  /* --- Config presets --- */
+  .config-row {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .config-row .btn { flex: 1; font-size: 0.75rem; padding: 0.45rem 0.5rem; }
+
+  .saved-configs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 140px;
+    overflow-y: auto;
+  }
+
+  .saved-configs:empty::after {
+    content: 'No saved configs yet';
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-style: italic;
+    text-align: center;
+    padding: 0.4rem;
+  }
+
+  .config-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--surface-raised);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .config-item:hover { border-color: var(--accent); }
+
+  .config-item .config-name {
+    flex: 1;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .config-item .config-delete {
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .config-item .config-delete:hover {
+    color: var(--danger);
+    background: rgba(239, 83, 80, 0.15);
+  }
+
+  /* --- Export folder display --- */
+  .folder-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .folder-path {
+    flex: 1;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.3rem 0.5rem;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    min-height: 1.8rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .folder-path.set { color: var(--success); }
+
+  .folder-btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+
+  .folder-btn:hover { border-color: var(--accent); }
+
+  /* --- Actions --- */
+  .actions {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .btn {
+    padding: 0.65rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: var(--danger-hover); }
+  .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: var(--surface-raised);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--accent); }
+
+  /* --- Canvas area --- */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    overflow: auto;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(79,195,247,0.03) 0%, transparent 70%),
+      var(--bg);
+  }
+
+  .canvas-wrap {
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    border-radius: 4px;
+    overflow: hidden;
+    line-height: 0;
+  }
+
+  .canvas-wrap canvas {
+    max-width: 100%;
+    max-height: calc(100vh - 8rem);
+    display: block;
+  }
+
+  .empty-state { text-align: center; color: var(--text-dim); }
+  .empty-state p { font-size: 1rem; margin-bottom: 0.5rem; }
+  .empty-state small { font-size: 0.8rem; opacity: 0.6; }
+
+  .canvas-wrap.draggable { cursor: grab; }
+  .canvas-wrap.dragging { cursor: grabbing; }
+
+  /* --- Progress bar --- */
+  .progress-bar { display: none; margin-top: 0.5rem; }
+  .progress-bar.visible { display: block; }
+
+  .progress-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.15s;
+    width: 0;
+  }
+
+  .progress-text {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 0.25rem;
+    text-align: center;
+  }
+
+  /* Nav arrows over canvas */
+  .nav-arrows {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+  }
+
+  .nav-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    transition: all 0.15s;
+  }
+
+  .nav-btn:hover { background: rgba(79,195,247,0.4); border-color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .nav-counter {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 0 0.6rem;
+    border-radius: 18px;
+    backdrop-filter: blur(4px);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.25s;
+    pointer-events: none;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { background: var(--success); }
+  .toast.warn { background: var(--warn); color: var(--bg); }
+  .toast.error { background: var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Watermark Stamper</h1>
+</header>
+
+<div class="app">
+  <aside class="sidebar">
+
+    <!-- Images panel -->
+    <div class="panel">
+      <div class="panel-title-row">
+        <div class="panel-title">Images</div>
+        <div style="display:flex;gap:0.4rem;align-items:center">
+          <button class="folder-btn" id="clearImagesBtn" style="display:none">Clear</button>
+          <span class="badge" id="imageCount">0</span>
+        </div>
+      </div>
+      <div class="upload-zone" id="baseZone">
+        <input type="file" id="baseInput" accept="image/*" multiple>
+        <div class="label"><strong>Click</strong> or drop images here (multi-select)</div>
+      </div>
+      <div class="image-list" id="imageList"></div>
+    </div>
+
+    <!-- Actions (moved up for quick access after import) -->
+    <div class="actions">
+      <div class="panel-title">Export Destination</div>
+      <div class="folder-display">
+        <div class="folder-path" id="folderPath">Browser downloads (default)</div>
+        <button class="folder-btn" id="chooseFolderBtn">Choose</button>
+      </div>
+
+      <button class="btn btn-primary" id="exportCurrentBtn" disabled>Export Current Image</button>
+      <button class="btn btn-primary" id="exportAllBtn" disabled>Export All Images</button>
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText"></div>
+      </div>
+      <button class="btn btn-danger" id="removeAllBtn" disabled>Remove All Images</button>
+      <button class="btn btn-secondary" id="resetBtn">Reset Settings</button>
+    </div>
+
+    <!-- Watermark panel -->
+    <div class="panel">
+      <div class="panel-title-row">
+        <div class="panel-title">Watermark Image</div>
+        <button class="folder-btn" id="clearWmBtn" style="display:none">Clear</button>
+      </div>
+      <div class="upload-zone" id="wmZone">
+        <input type="file" id="wmInput" accept="image/*">
+        <div class="label"><strong>Click</strong> or drop watermark here</div>
+        <div class="filename" id="wmName"></div>
+      </div>
+    </div>
+
+    <!-- Position panel -->
+    <div class="panel">
+      <div class="panel-title">Position</div>
+      <div class="control-row">
+        <div class="control-header">
+          <span>X</span>
+          <input type="number" class="num-input" id="posXNum" min="0" max="100" step="0.5" value="50">
+        </div>
+        <input type="range" id="posX" min="0" max="100" value="50" step="0.5">
+      </div>
+      <div class="control-row">
+        <div class="control-header">
+          <span>Y</span>
+          <input type="number" class="num-input" id="posYNum" min="0" max="100" step="0.5" value="50">
+        </div>
+        <input type="range" id="posY" min="0" max="100" value="50" step="0.5">
+      </div>
+      <div class="panel-title" style="margin-top:0.5rem">Quick Position</div>
+      <div class="preset-grid">
+        <button class="preset-btn" data-x="10" data-y="10">Top-Left</button>
+        <button class="preset-btn" data-x="50" data-y="10">Top</button>
+        <button class="preset-btn" data-x="90" data-y="10">Top-Right</button>
+        <button class="preset-btn" data-x="10" data-y="50">Left</button>
+        <button class="preset-btn" data-x="50" data-y="50">Center</button>
+        <button class="preset-btn" data-x="90" data-y="50">Right</button>
+        <button class="preset-btn" data-x="10" data-y="90">Bot-Left</button>
+        <button class="preset-btn" data-x="50" data-y="90">Bottom</button>
+        <button class="preset-btn" data-x="90" data-y="90">Bot-Right</button>
+      </div>
+    </div>
+
+    <!-- Transform panel -->
+    <div class="panel">
+      <div class="panel-title">Transform</div>
+      <div class="control-row">
+        <div class="control-header">
+          <span>Scale (%)</span>
+          <input type="number" class="num-input" id="scaleNum" min="1" max="100" step="0.5" value="25">
+        </div>
+        <input type="range" id="scale" min="1" max="100" value="25" step="0.5">
+      </div>
+      <div class="control-row">
+        <div class="control-header">
+          <span>Rotation (&deg;)</span>
+          <input type="number" class="num-input" id="rotationNum" min="-180" max="180" step="1" value="0">
+        </div>
+        <input type="range" id="rotation" min="-180" max="180" value="0" step="1">
+      </div>
+      <div class="control-row">
+        <div class="control-header">
+          <span>Opacity (%)</span>
+          <input type="number" class="num-input" id="opacityNum" min="0" max="100" step="1" value="50">
+        </div>
+        <input type="range" id="opacity" min="0" max="100" value="50" step="1">
+      </div>
+    </div>
+
+    <!-- Options panel -->
+    <div class="panel">
+      <div class="panel-title">Options</div>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="tileToggle">
+          <span class="slider"></span>
+        </label>
+        <span>Tile / Repeat watermark</span>
+      </div>
+      <div class="control-row" id="tileSpacingRow" style="display:none">
+        <div class="control-header">
+          <span>Tile Spacing (%)</span>
+          <input type="number" class="num-input" id="tileSpacingNum" min="10" max="200" step="5" value="50">
+        </div>
+        <input type="range" id="tileSpacing" min="10" max="200" value="50" step="5">
+      </div>
+    </div>
+
+    <!-- Config presets panel -->
+    <div class="panel">
+      <div class="panel-title">Saved Configs</div>
+      <div class="config-row">
+        <button class="btn btn-secondary" id="saveConfigBtn">Save Current</button>
+        <button class="btn btn-secondary" id="exportConfigBtn">Export JSON</button>
+        <button class="btn btn-secondary" id="importConfigBtn">Import</button>
+        <input type="file" id="importConfigInput" accept=".json" style="display:none">
+      </div>
+      <div class="saved-configs" id="savedConfigs"></div>
+    </div>
+
+  </aside>
+
+  <main class="canvas-area" id="canvasArea">
+    <div class="empty-state" id="emptyState">
+      <p>Load images to get started</p>
+      <small>Supports PNG, JPG, WebP, GIF &mdash; multi-select supported</small>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap" style="display:none">
+      <canvas id="preview"></canvas>
+      <div class="nav-arrows" id="navArrows" style="display:none">
+        <button class="nav-btn" id="prevBtn" title="Previous image">&#9664;</button>
+        <span class="nav-counter" id="navCounter">1 / 1</span>
+        <button class="nav-btn" id="nextBtn" title="Next image">&#9654;</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  // ---- Toast ----
+  let toastTimer = null;
+  function showToast(msg, type) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.className = 'toast ' + (type || 'success');
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  }
+
+  // ---- State ----
+  const images = [];
+  let activeIndex = -1;
+  let wmImg = null;
+  let exportDirHandle = null; // File System Access API handle
+
+  // DOM refs
+  const canvas = $('#preview');
+  const ctx = canvas.getContext('2d');
+  const canvasWrap = $('#canvasWrap');
+  const emptyState = $('#emptyState');
+  const imageListEl = $('#imageList');
+  const imageCountBadge = $('#imageCount');
+  const navArrows = $('#navArrows');
+  const navCounter = $('#navCounter');
+
+  // Slider + number pairs: { slider, num }
+  const pairs = {
+    posX:        { slider: $('#posX'),        num: $('#posXNum') },
+    posY:        { slider: $('#posY'),        num: $('#posYNum') },
+    scale:       { slider: $('#scale'),       num: $('#scaleNum') },
+    rotation:    { slider: $('#rotation'),    num: $('#rotationNum') },
+    opacity:     { slider: $('#opacity'),     num: $('#opacityNum') },
+    tileSpacing: { slider: $('#tileSpacing'), num: $('#tileSpacingNum') },
+  };
+
+  const tileToggle = $('#tileToggle');
+
+  // ---- Slider <-> Number sync ----
+  function syncFromSlider(key) {
+    pairs[key].num.value = pairs[key].slider.value;
+  }
+
+  function syncFromNum(key) {
+    const p = pairs[key];
+    let v = parseFloat(p.num.value);
+    const min = parseFloat(p.slider.min);
+    const max = parseFloat(p.slider.max);
+    if (isNaN(v)) v = min;
+    v = Math.max(min, Math.min(max, v));
+    p.num.value = v;
+    p.slider.value = v;
+  }
+
+  function syncAllFromSliders() {
+    for (const key of Object.keys(pairs)) syncFromSlider(key);
+  }
+
+  for (const [key, p] of Object.entries(pairs)) {
+    p.slider.addEventListener('input', () => {
+      syncFromSlider(key);
+      render();
+    });
+    p.num.addEventListener('input', () => {
+      syncFromNum(key);
+      render();
+    });
+    p.num.addEventListener('change', () => {
+      syncFromNum(key);
+      render();
+    });
+    // Block arrow keys from triggering image navigation when focused on number inputs
+    p.num.addEventListener('keydown', (e) => e.stopPropagation());
+  }
+
+  tileToggle.addEventListener('change', () => {
+    $('#tileSpacingRow').style.display = tileToggle.checked ? '' : 'none';
+    render();
+  });
+
+  // ---- Getters / setters for config ----
+  function getConfig() {
+    return {
+      posX: parseFloat(pairs.posX.slider.value),
+      posY: parseFloat(pairs.posY.slider.value),
+      scale: parseFloat(pairs.scale.slider.value),
+      rotation: parseFloat(pairs.rotation.slider.value),
+      opacity: parseFloat(pairs.opacity.slider.value),
+      tile: tileToggle.checked,
+      tileSpacing: parseFloat(pairs.tileSpacing.slider.value),
+    };
+  }
+
+  function applyConfig(cfg) {
+    pairs.posX.slider.value = cfg.posX ?? 50;
+    pairs.posY.slider.value = cfg.posY ?? 50;
+    pairs.scale.slider.value = cfg.scale ?? 25;
+    pairs.rotation.slider.value = cfg.rotation ?? 0;
+    pairs.opacity.slider.value = cfg.opacity ?? 50;
+    tileToggle.checked = cfg.tile ?? false;
+    pairs.tileSpacing.slider.value = cfg.tileSpacing ?? 50;
+    $('#tileSpacingRow').style.display = tileToggle.checked ? '' : 'none';
+    syncAllFromSliders();
+    render();
+  }
+
+  // ---- Config persistence (localStorage) ----
+  const STORAGE_KEY = 'watermark-stamper-configs';
+
+  function loadConfigs() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch { return []; }
+  }
+
+  function saveConfigs(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function refreshConfigList() {
+    const container = $('#savedConfigs');
+    container.innerHTML = '';
+    const configs = loadConfigs();
+
+    configs.forEach((entry, i) => {
+      const el = document.createElement('div');
+      el.className = 'config-item';
+      el.innerHTML =
+        '<span class="config-name">' + escapeHtml(entry.name) + '</span>' +
+        '<button class="config-delete" title="Delete">&times;</button>';
+
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.config-delete')) return;
+        applyConfig(entry.config);
+        showToast('Loaded: ' + entry.name);
+      });
+
+      el.querySelector('.config-delete').addEventListener('click', () => {
+        const list = loadConfigs();
+        list.splice(i, 1);
+        saveConfigs(list);
+        refreshConfigList();
+        showToast('Deleted: ' + entry.name, 'warn');
+      });
+
+      container.appendChild(el);
+    });
+  }
+
+  $('#saveConfigBtn').addEventListener('click', () => {
+    const name = prompt('Config name:');
+    if (!name) return;
+    const list = loadConfigs();
+    list.push({ name: name.trim(), config: getConfig() });
+    saveConfigs(list);
+    refreshConfigList();
+    showToast('Saved: ' + name.trim());
+  });
+
+  $('#exportConfigBtn').addEventListener('click', () => {
+    const data = JSON.stringify(getConfig(), null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.download = 'watermark-config.json';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    showToast('Config exported');
+  });
+
+  $('#importConfigBtn').addEventListener('click', () => $('#importConfigInput').click());
+
+  $('#importConfigInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const cfg = JSON.parse(reader.result);
+        applyConfig(cfg);
+        showToast('Config imported');
+      } catch {
+        showToast('Invalid config file', 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  refreshConfigList();
+
+  // ---- Export directory picker ----
+  const folderPathEl = $('#folderPath');
+  const hasDirectoryPicker = typeof window.showDirectoryPicker === 'function';
+
+  if (!hasDirectoryPicker) {
+    $('#chooseFolderBtn').title = 'Not supported in this browser (use Chrome or Edge)';
+  }
+
+  // IndexedDB: persist the FileSystemDirectoryHandle so it survives reloads.
+  const DIR_DB = 'watermark-stamper';
+  const DIR_STORE = 'handles';
+  const DIR_KEY = 'exportDir';
+
+  function openDirDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DIR_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(DIR_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function idbPutHandle(handle) {
+    const db = await openDirDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DIR_STORE, 'readwrite');
+      tx.objectStore(DIR_STORE).put(handle, DIR_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function idbGetHandle() {
+    const db = await openDirDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DIR_STORE, 'readonly');
+      const req = tx.objectStore(DIR_STORE).get(DIR_KEY);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function idbDeleteHandle() {
+    const db = await openDirDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DIR_STORE, 'readwrite');
+      tx.objectStore(DIR_STORE).delete(DIR_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function ensureDirPermission(handle, withPrompt) {
+    const opts = { mode: 'readwrite' };
+    if ((await handle.queryPermission(opts)) === 'granted') return true;
+    if (!withPrompt) return false;
+    return (await handle.requestPermission(opts)) === 'granted';
+  }
+
+  function setFolderLabel(text, isSet) {
+    folderPathEl.textContent = text;
+    folderPathEl.classList.toggle('set', !!isSet);
+  }
+  async function clearSavedDir() {
+    exportDirHandle = null;
+    setFolderLabel('Browser downloads (default)', false);
+    try { await idbDeleteHandle(); } catch {}
+  }
+
+  $('#chooseFolderBtn').addEventListener('click', async () => {
+    if (!hasDirectoryPicker) {
+      showToast('Directory picker requires Chrome or Edge', 'warn');
+      return;
+    }
+    try {
+      exportDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      setFolderLabel(exportDirHandle.name, true);
+      try { await idbPutHandle(exportDirHandle); } catch {}
+      showToast('Export folder saved: ' + exportDirHandle.name);
+    } catch {
+      // User cancelled
+    }
+  });
+
+  async function restoreExportDir() {
+    if (!hasDirectoryPicker) return;
+    try {
+      const saved = await idbGetHandle();
+      if (!saved) return;
+      exportDirHandle = saved;
+      setFolderLabel(saved.name, true);
+      // Permission often needs to be re-granted on a fresh session —
+      // we'll prompt at first export (which is a user gesture).
+    } catch (err) {
+      console.warn('Failed to restore export folder', err);
+    }
+  }
+
+  async function saveToDirectory(filename, canvasEl) {
+    const blob = await new Promise((r) => canvasEl.toBlob(r, 'image/png'));
+    return saveBlobToDirectory(filename, blob);
+  }
+
+  function downloadFallback(filename, canvasEl) {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvasEl.toDataURL('image/png');
+    link.click();
+  }
+
+  async function saveBlobToDirectory(filename, blob) {
+    if (!exportDirHandle) return false;
+    try {
+      if (!(await ensureDirPermission(exportDirHandle, true))) {
+        await clearSavedDir();
+        return false;
+      }
+      const fileHandle = await exportDirHandle.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch {
+      await clearSavedDir();
+      return false;
+    }
+  }
+
+  function downloadBlobFallback(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = url;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ---- GIF decode + re-encode with watermark ----
+  let gifuctLib = null;
+  async function getGifuct() {
+    if (gifuctLib) return gifuctLib;
+    try {
+      gifuctLib = await import('https://esm.sh/gifuct-js@2.1.2');
+    } catch (err) {
+      throw new Error('Could not load GIF decoder from esm.sh: ' + err.message);
+    }
+    if (typeof gifuctLib.parseGIF !== 'function') {
+      throw new Error('GIF decoder module missing parseGIF export');
+    }
+    return gifuctLib;
+  }
+
+  async function buildGifFrames(file) {
+    const lib = await getGifuct();
+    const buf = await file.arrayBuffer();
+    const parsed = lib.parseGIF(buf);
+    const frames = lib.decompressFrames(parsed, true);
+
+    const w = parsed.lsd.width;
+    const h = parsed.lsd.height;
+
+    const stage = document.createElement('canvas');
+    stage.width = w;
+    stage.height = h;
+    const sctx = stage.getContext('2d');
+
+    const patchCanvas = document.createElement('canvas');
+    const pctx = patchCanvas.getContext('2d');
+
+    const output = [];
+    let savedState = null;
+
+    for (const frame of frames) {
+      const { dims, patch, delay, disposalType } = frame;
+
+      if (disposalType === 3) savedState = sctx.getImageData(0, 0, w, h);
+
+      patchCanvas.width = dims.width;
+      patchCanvas.height = dims.height;
+      const pData = pctx.createImageData(dims.width, dims.height);
+      pData.data.set(patch);
+      pctx.putImageData(pData, 0, 0);
+      sctx.drawImage(patchCanvas, dims.left, dims.top);
+
+      const out = document.createElement('canvas');
+      out.width = w;
+      out.height = h;
+      stampWatermark(out.getContext('2d'), stage, w, h);
+      output.push({ canvas: out, delay: delay || 100 });
+
+      if (disposalType === 2) {
+        sctx.clearRect(dims.left, dims.top, dims.width, dims.height);
+      } else if (disposalType === 3 && savedState) {
+        sctx.putImageData(savedState, 0, 0);
+      }
+    }
+
+    return { width: w, height: h, frames: output };
+  }
+
+  let gifWorkerUrl = null;
+  async function getGifWorkerUrl() {
+    if (gifWorkerUrl) return gifWorkerUrl;
+    const resp = await fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js');
+    if (!resp.ok) throw new Error('Failed to fetch GIF worker (' + resp.status + ')');
+    const text = await resp.text();
+    const blob = new Blob([text], { type: 'application/javascript' });
+    gifWorkerUrl = URL.createObjectURL(blob);
+    return gifWorkerUrl;
+  }
+
+  async function exportGif(entry) {
+    if (typeof GIF === 'undefined') throw new Error('GIF encoder script not loaded (check network)');
+
+    const workerScript = await getGifWorkerUrl();
+    const { width, height, frames } = await buildGifFrames(entry.file);
+
+    return new Promise((resolve, reject) => {
+      const encoder = new GIF({ workers: 2, quality: 10, width, height, workerScript });
+      for (const f of frames) {
+        encoder.addFrame(f.canvas, { delay: f.delay, copy: true });
+      }
+      encoder.on('finished', (blob) => {
+        if (!blob || blob.size === 0) reject(new Error('Encoder produced empty blob'));
+        else resolve(blob);
+      });
+      encoder.on('abort', () => reject(new Error('GIF encoding aborted')));
+      encoder.render();
+    });
+  }
+
+  // ---- Image list management ----
+  function addImage(file) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+    img.onload = () => {
+      images.push({ img, name: file.name, url, file, isGif });
+      refreshImageList();
+      if (images.length === 1) selectImage(0);
+      updateButtons();
+    };
+    img.src = url;
+  }
+
+  function removeImage(index) {
+    URL.revokeObjectURL(images[index].url);
+    images.splice(index, 1);
+
+    if (images.length === 0) {
+      activeIndex = -1;
+      canvasWrap.style.display = 'none';
+      emptyState.style.display = '';
+    } else if (activeIndex >= images.length) {
+      activeIndex = images.length - 1;
+    } else if (activeIndex === index) {
+      activeIndex = Math.min(index, images.length - 1);
+    }
+
+    refreshImageList();
+    if (activeIndex >= 0) selectImage(activeIndex);
+    updateButtons();
+  }
+
+  function removeAllImages() {
+    images.forEach((entry) => URL.revokeObjectURL(entry.url));
+    images.length = 0;
+    activeIndex = -1;
+    canvasWrap.style.display = 'none';
+    emptyState.style.display = '';
+    refreshImageList();
+    updateButtons();
+    $('#clearImagesBtn').style.display = 'none';
+  }
+
+  function selectImage(index) {
+    activeIndex = index;
+    const entry = images[index];
+    canvas.width = entry.img.naturalWidth;
+    canvas.height = entry.img.naturalHeight;
+    canvasWrap.style.display = '';
+    emptyState.style.display = 'none';
+    refreshImageList();
+    updateNav();
+    render();
+  }
+
+  function refreshImageList() {
+    imageListEl.innerHTML = '';
+    imageCountBadge.textContent = String(images.length);
+
+    images.forEach((entry, i) => {
+      const el = document.createElement('div');
+      el.className = 'img-thumb' + (i === activeIndex ? ' active' : '');
+
+      const thumb = document.createElement('img');
+      thumb.src = entry.url;
+      thumb.alt = entry.name;
+
+      const info = document.createElement('div');
+      info.className = 'info';
+      info.innerHTML =
+        '<div class="name">' + escapeHtml(entry.name) + '</div>' +
+        '<div class="dims">' + entry.img.naturalWidth + ' x ' + entry.img.naturalHeight + '</div>';
+
+      const rmBtn = document.createElement('button');
+      rmBtn.className = 'remove-btn';
+      rmBtn.title = 'Remove';
+      rmBtn.innerHTML = '&times;';
+      rmBtn.addEventListener('click', (e) => { e.stopPropagation(); removeImage(i); });
+
+      el.appendChild(thumb);
+      el.appendChild(info);
+      el.appendChild(rmBtn);
+      el.addEventListener('click', () => selectImage(i));
+      imageListEl.appendChild(el);
+    });
+  }
+
+  function updateNav() {
+    const show = images.length > 1;
+    navArrows.style.display = show ? '' : 'none';
+    if (show) {
+      navCounter.textContent = (activeIndex + 1) + ' / ' + images.length;
+      $('#prevBtn').disabled = activeIndex === 0;
+      $('#nextBtn').disabled = activeIndex === images.length - 1;
+    }
+  }
+
+  function updateButtons() {
+    const hasImages = images.length > 0;
+    $('#exportCurrentBtn').disabled = !hasImages;
+    $('#exportAllBtn').disabled = images.length < 2;
+    $('#removeAllBtn').disabled = !hasImages;
+    $('#clearImagesBtn').style.display = hasImages ? '' : 'none';
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ---- Upload zones ----
+  function setupUploadZone(zoneSelector, inputSelector, onFiles) {
+    const zone = $(zoneSelector);
+    const input = $(inputSelector);
+
+    zone.addEventListener('click', (e) => {
+      if (e.target === input) return;
+      input.click();
+    });
+
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      onFiles(e.dataTransfer.files);
+    });
+
+    input.addEventListener('change', () => {
+      onFiles(input.files);
+      input.value = '';
+    });
+  }
+
+  setupUploadZone('#baseZone', '#baseInput', (files) => {
+    for (const f of files) {
+      if (f.type.startsWith('image/')) addImage(f);
+    }
+  });
+
+  setupUploadZone('#wmZone', '#wmInput', (files) => {
+    const file = files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    $('#wmName').textContent = file.name;
+    const img = new Image();
+    img.onload = () => {
+      wmImg = img;
+      $('#clearWmBtn').style.display = '';
+      render();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
+  $('#clearWmBtn').addEventListener('click', () => {
+    wmImg = null;
+    $('#wmName').textContent = '';
+    $('#clearWmBtn').style.display = 'none';
+    render();
+  });
+
+  // ---- Nav buttons ----
+  $('#prevBtn').addEventListener('click', () => {
+    if (activeIndex > 0) selectImage(activeIndex - 1);
+  });
+
+  $('#nextBtn').addEventListener('click', () => {
+    if (activeIndex < images.length - 1) selectImage(activeIndex + 1);
+  });
+
+  // ---- Drag watermark on canvas ----
+  let isDragging = false;
+  let dragStartX, dragStartY, startValX, startValY;
+
+  canvasWrap.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.nav-btn')) return;
+    if (!wmImg || activeIndex < 0) return;
+    isDragging = true;
+    canvasWrap.classList.add('dragging');
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    startValX = parseFloat(pairs.posX.slider.value);
+    startValY = parseFloat(pairs.posY.slider.value);
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const dx = (e.clientX - dragStartX) * (100 / rect.width);
+    const dy = (e.clientY - dragStartY) * (100 / rect.height);
+    const newX = Math.max(0, Math.min(100, startValX + dx));
+    const newY = Math.max(0, Math.min(100, startValY + dy));
+    pairs.posX.slider.value = newX;
+    pairs.posY.slider.value = newY;
+    syncFromSlider('posX');
+    syncFromSlider('posY');
+    render();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      canvasWrap.classList.remove('dragging');
+    }
+  });
+
+  // ---- Keyboard nav ----
+  window.addEventListener('keydown', (e) => {
+    // Don't navigate when typing in inputs
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowLeft' && activeIndex > 0) selectImage(activeIndex - 1);
+    else if (e.key === 'ArrowRight' && activeIndex < images.length - 1) selectImage(activeIndex + 1);
+  });
+
+  // ---- Presets ----
+  $$('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      pairs.posX.slider.value = btn.dataset.x;
+      pairs.posY.slider.value = btn.dataset.y;
+      syncFromSlider('posX');
+      syncFromSlider('posY');
+      render();
+    });
+  });
+
+  // ---- Render ----
+  function getWmSettings() {
+    return {
+      scalePercent: parseFloat(pairs.scale.slider.value) / 100,
+      rotation: (parseFloat(pairs.rotation.slider.value) * Math.PI) / 180,
+      opacity: parseFloat(pairs.opacity.slider.value) / 100,
+      posX: parseFloat(pairs.posX.slider.value) / 100,
+      posY: parseFloat(pairs.posY.slider.value) / 100,
+      tile: tileToggle.checked,
+      tileSpacing: parseFloat(pairs.tileSpacing.slider.value) / 100,
+    };
+  }
+
+  function stampWatermark(targetCtx, baseImg, w, h) {
+    const s = getWmSettings();
+
+    targetCtx.clearRect(0, 0, w, h);
+    targetCtx.drawImage(baseImg, 0, 0, w, h);
+
+    if (!wmImg) return;
+
+    const wmW = wmImg.naturalWidth * s.scalePercent * (w / wmImg.naturalWidth);
+    const wmH = wmImg.naturalHeight * s.scalePercent * (w / wmImg.naturalWidth);
+
+    function drawOne(cx, cy) {
+      targetCtx.save();
+      targetCtx.globalAlpha = s.opacity;
+      targetCtx.translate(cx, cy);
+      targetCtx.rotate(s.rotation);
+      targetCtx.drawImage(wmImg, -wmW / 2, -wmH / 2, wmW, wmH);
+      targetCtx.restore();
+    }
+
+    if (s.tile) {
+      const spacingX = wmW * (1 + s.tileSpacing);
+      const spacingY = wmH * (1 + s.tileSpacing);
+      const cols = Math.ceil(w / spacingX) + 2;
+      const rows = Math.ceil(h / spacingY) + 2;
+      const offsetX = (s.posX - 0.5) * spacingX;
+      const offsetY = (s.posY - 0.5) * spacingY;
+
+      for (let r = -1; r < rows; r++) {
+        for (let c = -1; c < cols; c++) {
+          drawOne(c * spacingX + spacingX / 2 + offsetX, r * spacingY + spacingY / 2 + offsetY);
+        }
+      }
+    } else {
+      drawOne(s.posX * w, s.posY * h);
+    }
+  }
+
+  function render() {
+    if (activeIndex < 0) return;
+    stampWatermark(ctx, images[activeIndex].img, canvas.width, canvas.height);
+  }
+
+  // ---- Export functions ----
+  async function exportOne(entry) {
+    const baseName = entry.name.replace(/\.[^.]+$/, '');
+
+    if (entry.isGif) {
+      const blob = await exportGif(entry);
+      const filename = baseName + '_watermarked.gif';
+      if (exportDirHandle) {
+        const ok = await saveBlobToDirectory(filename, blob);
+        if (ok) return;
+      }
+      downloadBlobFallback(filename, blob);
+      return;
+    }
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = entry.img.naturalWidth;
+    offscreen.height = entry.img.naturalHeight;
+    const offCtx = offscreen.getContext('2d');
+    stampWatermark(offCtx, entry.img, offscreen.width, offscreen.height);
+
+    const filename = baseName + '_watermarked.png';
+
+    if (exportDirHandle) {
+      const ok = await saveToDirectory(filename, offscreen);
+      if (ok) return;
+    }
+    downloadFallback(filename, offscreen);
+  }
+
+  $('#exportCurrentBtn').addEventListener('click', async () => {
+    if (activeIndex < 0) return;
+    const entry = images[activeIndex];
+    if (entry.isGif) showToast('Encoding GIF... this may take a few seconds');
+    try {
+      await exportOne(entry);
+      showToast('Exported: ' + entry.name);
+    } catch (err) {
+      console.error(err);
+      showToast('Export failed: ' + err.message, 'warn');
+    }
+  });
+
+  $('#exportAllBtn').addEventListener('click', async () => {
+    if (images.length < 2) return;
+
+    const progressBar = $('#progressBar');
+    const progressFill = $('#progressFill');
+    const progressText = $('#progressText');
+    const exportBtn = $('#exportAllBtn');
+
+    exportBtn.disabled = true;
+    progressBar.classList.add('visible');
+
+    let failed = 0;
+    for (let i = 0; i < images.length; i++) {
+      const pct = Math.round(((i + 1) / images.length) * 100);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = 'Exporting ' + (i + 1) + ' of ' + images.length + '...';
+
+      try {
+        await exportOne(images[i]);
+      } catch (err) {
+        console.error(err);
+        failed++;
+      }
+
+      // Small delay between downloads for the browser to process
+      if (!exportDirHandle) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+
+    const okCount = images.length - failed;
+    progressText.textContent = 'Done! Exported ' + okCount + ' of ' + images.length + '.';
+    if (failed > 0) showToast('Exported ' + okCount + ', ' + failed + ' failed', 'warn');
+    else showToast('Exported ' + okCount + ' images');
+
+    setTimeout(() => {
+      progressBar.classList.remove('visible');
+      progressFill.style.width = '0';
+      exportBtn.disabled = false;
+    }, 2000);
+  });
+
+  // ---- Remove all ----
+  $('#removeAllBtn').addEventListener('click', removeAllImages);
+  $('#clearImagesBtn').addEventListener('click', () => {
+    removeAllImages();
+    showToast('Images cleared', 'warn');
+  });
+
+  // ---- Reset settings ----
+  $('#resetBtn').addEventListener('click', () => {
+    applyConfig({
+      posX: 50, posY: 50,
+      scale: 25, rotation: 0, opacity: 50,
+      tile: false, tileSpacing: 50,
+    });
+    showToast('Settings reset');
+  });
+
+  // ---- Init ----
+  canvasWrap.classList.add('draggable');
+  syncAllFromSliders();
+  restoreExportDir();
+})();
+</script>
+
+</body>
+</html>
