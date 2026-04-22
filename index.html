@@ -733,7 +733,7 @@
         <button class="btn btn-secondary" id="saveConfigBtn">Save Current</button>
         <button class="btn btn-secondary" id="exportConfigBtn">Export JSON</button>
         <button class="btn btn-secondary" id="importConfigBtn">Import</button>
-        <input type="file" id="importConfigInput" accept=".json" style="display:none">
+        <input type="file" id="importConfigInput" accept=".json" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       </div>
       <div class="saved-configs" id="savedConfigs"></div>
     </div>
@@ -924,33 +924,107 @@
   });
 
   $('#exportConfigBtn').addEventListener('click', () => {
-    const data = JSON.stringify(getConfig(), null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.download = 'watermark-config.json';
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
-    showToast('Config exported');
+    try {
+      const saved = loadConfigs();
+      const payload = {
+        version: 1,
+        type: 'watermark-stamper-configs',
+        configs: saved,
+        current: getConfig(),
+      };
+      const data = JSON.stringify(payload, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      link.download = 'watermark-configs-' + stamp + '.json';
+      link.href = url;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 500);
+      showToast('Exported ' + saved.length + ' saved config' + (saved.length === 1 ? '' : 's'));
+    } catch (err) {
+      console.error('Export config failed:', err);
+      showToast('Export failed: ' + err.message, 'error');
+    }
   });
 
   $('#importConfigBtn').addEventListener('click', () => $('#importConfigInput').click());
 
+  function isSingleConfigShape(obj) {
+    return obj && typeof obj === 'object' && ('posX' in obj || 'posY' in obj || 'scale' in obj);
+  }
+
+  function isSavedEntry(obj) {
+    return obj && typeof obj === 'object' && typeof obj.name === 'string' && isSingleConfigShape(obj.config);
+  }
+
   $('#importConfigInput').addEventListener('change', (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const cfg = JSON.parse(reader.result);
-        applyConfig(cfg);
-        showToast('Config imported');
-      } catch {
-        showToast('Invalid config file', 'error');
+        const parsed = JSON.parse(reader.result);
+        if (!parsed || typeof parsed !== 'object') throw new Error('Not a JSON object');
+
+        let importedList = null;
+        let currentToApply = null;
+
+        if (Array.isArray(parsed)) {
+          // Array of { name, config } entries
+          if (!parsed.every(isSavedEntry)) throw new Error('Array entries must be {name, config}');
+          importedList = parsed;
+        } else if (Array.isArray(parsed.configs)) {
+          // New bundle format: { version, configs, current }
+          if (!parsed.configs.every(isSavedEntry)) throw new Error('configs entries must be {name, config}');
+          importedList = parsed.configs;
+          if (isSingleConfigShape(parsed.current)) currentToApply = parsed.current;
+        } else if (isSingleConfigShape(parsed)) {
+          // Legacy single-config file — apply to sliders only
+          applyConfig(parsed);
+          showToast('Applied single config to sliders');
+          return;
+        } else {
+          throw new Error('Unrecognized config file shape');
+        }
+
+        const existing = loadConfigs();
+        const existingNames = new Set(existing.map((e) => e.name));
+        const merged = existing.slice();
+        let added = 0;
+        for (const entry of importedList) {
+          if (existingNames.has(entry.name)) continue;
+          merged.push(entry);
+          existingNames.add(entry.name);
+          added++;
+        }
+        saveConfigs(merged);
+        refreshConfigList();
+        if (currentToApply) applyConfig(currentToApply);
+
+        const skipped = importedList.length - added;
+        let msg = 'Imported ' + added + ' config' + (added === 1 ? '' : 's');
+        if (skipped > 0) msg += ' (' + skipped + ' duplicate name' + (skipped === 1 ? '' : 's') + ' skipped)';
+        showToast(msg);
+      } catch (err) {
+        console.error('Import config failed:', err);
+        showToast('Invalid config file: ' + err.message, 'error');
+      } finally {
+        input.value = '';
       }
     };
+    reader.onerror = () => {
+      console.error('FileReader error:', reader.error);
+      showToast('Could not read file', 'error');
+      input.value = '';
+    };
     reader.readAsText(file);
-    e.target.value = '';
   });
 
   refreshConfigList();
